@@ -1,10 +1,12 @@
 // netlify/functions/notion.js
 // Proxy seguro para a API do Notion.
-// O token NUNCA é exposto no frontend — fica só aqui nas variáveis de ambiente do Netlify.
+// O token NUNCA é exposto no frontend.
 
-const DATABASE_ID = process.env.NOTION_DATABASE_ID;
-const NOTION_TOKEN = process.env.NOTION_TOKEN;
-const NOTION_VERSION = '2022-06-28';
+const DATABASE_ID     = process.env.NOTION_DATABASE_ID;      // QA (database novo)
+const CHECKLIST_DB_ID = process.env.NOTION_CHECKLIST_DB_ID;  // Termômetro de Liderança
+const CONTAS_DB_ID    = process.env.NOTION_CONTAS_DB_ID;     // Contas / Oportunidades
+const NOTION_TOKEN    = process.env.NOTION_TOKEN;
+const NOTION_VERSION  = '2022-06-28';
 
 exports.handler = async (event) => {
   const headers = {
@@ -13,150 +15,199 @@ exports.handler = async (event) => {
     'Content-Type': 'application/json',
   };
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
-  }
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
   if (!NOTION_TOKEN || !DATABASE_ID) {
     return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: 'Variáveis de ambiente não configuradas. Veja o README.' }),
+      statusCode: 500, headers,
+      body: JSON.stringify({ error: 'Variáveis de ambiente não configuradas.' }),
     };
   }
 
   try {
-    let allResults = [];
-    let cursor = undefined;
+    // Busca paralela dos três databases
+    const [qaRows, checklistRows, contasRows] = await Promise.all([
+      queryDatabase(DATABASE_ID),
+      CHECKLIST_DB_ID ? queryDatabase(CHECKLIST_DB_ID) : Promise.resolve([]),
+      CONTAS_DB_ID    ? queryDatabase(CONTAS_DB_ID)    : Promise.resolve([]),
+    ]);
 
-    // Pagina automaticamente até buscar todos os registros (Notion retorna max 100 por vez)
-    do {
-      const body = { page_size: 100 };
-      if (cursor) body.start_cursor = cursor;
-
-      const res = await fetch(`https://api.notion.com/v1/databases/${DATABASE_ID}/query`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${NOTION_TOKEN}`,
-          'Notion-Version': NOTION_VERSION,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        return {
-          statusCode: res.status,
-          headers,
-          body: JSON.stringify({ error: 'Erro na API do Notion', detail: err }),
-        };
-      }
-
-      const data = await res.json();
-      allResults = allResults.concat(data.results);
-      cursor = data.has_more ? data.next_cursor : undefined;
-    } while (cursor);
-
-    // Transforma os dados brutos do Notion no formato que o dashboard espera
-    const rows = transformNotionData(allResults);
+    const rows          = transformQAData(qaRows);
+    const termometro    = transformTermometroData(checklistRows);
+    const oportunidades = transformContasData(contasRows);
 
     return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ rows, total: rows.length, fetchedAt: new Date().toISOString() }),
+      statusCode: 200, headers,
+      body: JSON.stringify({
+        rows,
+        termometro,
+        oportunidades,
+        total: rows.length,
+        fetchedAt: new Date().toISOString(),
+      }),
     };
   } catch (err) {
     return {
-      statusCode: 500,
-      headers,
+      statusCode: 500, headers,
       body: JSON.stringify({ error: 'Erro interno', detail: err.message }),
     };
   }
 };
 
-// ─── Transformação de dados ──────────────────────────────────────────────────
-// Mapeia as propriedades do Notion para o formato interno do dashboard.
-// Se você renomear colunas no Notion, ajuste apenas este objeto:
-const PROP_MAP = {
-  sq4:          'Cliente - Squad 4',
-  sq5_dash:     'Cliente - Squad 5',    // com hífen normal
-  sq5_mdash:    'Cliente \u2014 Squad 5', // com travessão longo (—)
-  frente:       'Frente',
-  quinzena:     'Quinzena',
-  statusSQ4:    'Status Geral SQ4',
-  statusSQ5:    'Status Geral SQ5',
-  statusFrente: 'Status da Frente',
-  justificativa:'Justificativa e/ou Ação Definida',
-};
+// ─── Paginação automática ─────────────────────────────────────────
+async function queryDatabase(dbId) {
+  let allResults = [];
+  let cursor     = undefined;
+  do {
+    const body = { page_size: 100 };
+    if (cursor) body.start_cursor = cursor;
+    const res = await fetch(`https://api.notion.com/v1/databases/${dbId}/query`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${NOTION_TOKEN}`,
+        'Notion-Version': NOTION_VERSION,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(`Notion API ${res.status}: ${JSON.stringify(err)}`);
+    }
+    const data = await res.json();
+    allResults  = allResults.concat(data.results);
+    cursor      = data.has_more ? data.next_cursor : undefined;
+  } while (cursor);
+  return allResults;
+}
 
+// ─── Helper genérico de propriedades ─────────────────────────────
 function getProp(props, key) {
   const p = props[key];
   if (!p) return '';
   switch (p.type) {
-    case 'title':       return p.title?.map(t => t.plain_text).join('') || '';
-    case 'rich_text':   return p.rich_text?.map(t => t.plain_text).join('') || '';
-    case 'select':      return p.select?.name || '';
-    case 'multi_select':return p.multi_select?.map(s => s.name).join(', ') || '';
-    case 'date':        return p.date?.start || '';
-    case 'number':      return p.number ?? '';
-    case 'checkbox':    return p.checkbox ? 'true' : 'false';
-    case 'formula':     return p.formula?.string || p.formula?.number || '';
-    default:            return '';
+    case 'title':        return p.title?.map(t => t.plain_text).join('')     || '';
+    case 'rich_text':    return p.rich_text?.map(t => t.plain_text).join('') || '';
+    case 'select':       return p.select?.name || '';
+    case 'multi_select': return p.multi_select?.map(s => s.name).join(', ')  || '';
+    case 'date':         return p.date?.start || '';
+    case 'number':       return p.number ?? '';
+    case 'checkbox':     return p.checkbox;
+    case 'formula':      return p.formula?.string || p.formula?.number || '';
+    default:             return '';
   }
 }
 
-function normalizeStatus(s) {
+function norm(s) {
   if (!s) return '';
   return s.toUpperCase()
     .replace(/O[\u0301]TIMO/gi, 'ÓTIMO')
     .replace('OTIMO', 'ÓTIMO');
 }
 
-function transformNotionData(results) {
-  const rows = [];
+// ═════════════════════════════════════════════════════════════════
+// MAPEAMENTOS — ajuste aqui se renomear colunas no Notion
+// ═════════════════════════════════════════════════════════════════
 
-  results.forEach(page => {
-    const p = page.properties || {};
+// Database de QA (novo — estrutura correta com campo Squad único)
+const QA_MAP = {
+  registro:      'Registro',
+  cliente:       'Cliente',
+  squad:         'Squad',
+  frente:        'Frente',
+  quinzena:      'Quinzena',
+  statusGeral:   'Status Geral',
+  statusFrente:  'Status da Frente',
+  oQueAconteceu: 'O que aconteceu',
+  proximaAcao:   'Próxima ação',
+};
 
-    const sq4 = getProp(p, PROP_MAP.sq4);
-    const sq5 = getProp(p, PROP_MAP.sq5_dash) || getProp(p, PROP_MAP.sq5_mdash);
-    const frente = normalizeStatus(getProp(p, PROP_MAP.frente));
-    const quinzena = getProp(p, PROP_MAP.quinzena);
-    const statusSQ4 = getProp(p, PROP_MAP.statusSQ4);
-    const statusSQ5 = getProp(p, PROP_MAP.statusSQ5);
-    const statusFrente = normalizeStatus(getProp(p, PROP_MAP.statusFrente));
-    const justificativa = getProp(p, PROP_MAP.justificativa);
+// Database de Termômetro de Liderança
+const TL_MAP = {
+  lider:     'Líder',
+  quinzena:  'Quinzena',
+  criterio:  'Critério',
+  nota:      'Nota',
+  obs:       'Observação',
+};
 
-    // Uma linha do Notion pode ter SQ4 e SQ5 preenchidos simultaneamente
-    // Geramos uma entrada para cada squad presente
-    if (sq4) {
-      rows.push({
-        id: page.id,
-        cliente: sq4,
-        squad: 'SQ4',
-        frente,
-        quinzena,
-        statusGeralSQ4: statusSQ4,
-        statusGeralSQ5: '',
-        statusDaFrente: statusFrente,
-        justificativa,
-      });
-    }
-    if (sq5) {
-      rows.push({
-        id: page.id,
-        cliente: sq5,
-        squad: 'SQ5',
-        frente,
-        quinzena,
-        statusGeralSQ4: '',
-        statusGeralSQ5: statusSQ5,
-        statusDaFrente: statusFrente,
-        justificativa,
-      });
-    }
-  });
+// Database de Contas / Oportunidades
+const CONTAS_MAP = {
+  nome:           'Nome da conta',
+  status:         'Status',
+  squad:          'Squad',
+  tipo:           'Oportunidade em aberto',
+  possibilidades: 'Observações',
+  motivoStatus:   'Motivo do status',
+  dataRenovacao:  'Data de renovação',
+  kpi:            'KPI principal',
+};
 
-  return rows;
+// ═════════════════════════════════════════════════════════════════
+// TRANSFORMAÇÕES
+// ═════════════════════════════════════════════════════════════════
+
+// QA — nova estrutura (1 registro = 1 cliente + 1 squad + 1 frente)
+function transformQAData(results) {
+  return results
+    .map(page => {
+      const p = page.properties || {};
+      return {
+        id:            page.id,
+        cliente:       getProp(p, QA_MAP.cliente),
+        squad:         getProp(p, QA_MAP.squad),       // 'Squad 4' ou 'Squad 5'
+        frente:        norm(getProp(p, QA_MAP.frente)),
+        quinzena:      getProp(p, QA_MAP.quinzena),
+        statusGeral:   getProp(p, QA_MAP.statusGeral),
+        statusFrente:  norm(getProp(p, QA_MAP.statusFrente)),
+        oQueAconteceu: getProp(p, QA_MAP.oQueAconteceu),
+        proximaAcao:   getProp(p, QA_MAP.proximaAcao),
+      };
+    })
+    .filter(r => r.cliente); // remove linhas vazias
+}
+
+// Termômetro de Liderança
+const NOTA_SCORE = {
+  '🟢 Forte': 2,
+  '🟡 Em desenvolvimento': 1,
+  '🔴 Ponto de atenção': 0,
+};
+
+function transformTermometroData(results) {
+  return results
+    .map(page => {
+      const p = page.properties || {};
+      const nota = getProp(p, TL_MAP.nota);
+      return {
+        id:       page.id,
+        lider:    getProp(p, TL_MAP.lider),
+        quinzena: getProp(p, TL_MAP.quinzena),
+        criterio: getProp(p, TL_MAP.criterio),
+        nota,
+        score:    NOTA_SCORE[nota] ?? -1, // -1 = sem nota
+        obs:      getProp(p, TL_MAP.obs),
+      };
+    })
+    .filter(r => r.lider && r.criterio);
+}
+
+// Contas / Oportunidades
+function transformContasData(results) {
+  return results
+    .map(page => {
+      const p = page.properties || {};
+      return {
+        id:             page.id,
+        nome:           getProp(p, CONTAS_MAP.nome),
+        status:         getProp(p, CONTAS_MAP.status),
+        squad:          getProp(p, CONTAS_MAP.squad),
+        tipo:           getProp(p, CONTAS_MAP.tipo),
+        possibilidades: getProp(p, CONTAS_MAP.possibilidades),
+        motivoStatus:   getProp(p, CONTAS_MAP.motivoStatus),
+        dataRenovacao:  getProp(p, CONTAS_MAP.dataRenovacao),
+        kpi:            getProp(p, CONTAS_MAP.kpi),
+      };
+    })
+    .filter(r => r.tipo && r.tipo !== 'Nenhuma' && r.nome);
 }
