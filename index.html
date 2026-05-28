@@ -125,10 +125,12 @@ select,.btn-refresh{background:var(--surface2);border:1px solid var(--border);co
 .score-forte{background:rgba(34,197,94,.15);color:var(--green)}
 .score-dev{background:rgba(234,179,8,.15);color:var(--yellow)}
 .score-atencao{background:rgba(239,68,68,.15);color:var(--red)}
-.criterio-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:.5px solid var(--border);font-family:'DM Mono',monospace;font-size:.65rem}
+.criterio-row{display:grid;grid-template-columns:1fr auto minmax(80px,1.5fr);align-items:start;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border);font-family:'DM Mono',monospace;font-size:.65rem}
 .criterio-row:last-child{border-bottom:none}
-.criterio-nome{color:var(--muted);max-width:170px;line-height:1.3}
-.criterio-nota{font-weight:600;font-size:.68rem;white-space:nowrap}
+.criterio-header-row{display:grid;grid-template-columns:1fr auto minmax(80px,1.5fr);gap:8px;padding:4px 0;border-bottom:.5px solid var(--border);margin-bottom:2px}
+.criterio-nome{color:var(--muted);line-height:1.3}
+.criterio-nota{font-weight:600;font-size:.68rem;white-space:nowrap;text-align:right}
+.criterio-obs{color:var(--muted);font-size:.63rem;line-height:1.4}
 .nota-forte{color:var(--green)}.nota-dev{color:var(--yellow)}.nota-atencao{color:var(--red)}.nota-vazio{color:var(--muted)}
 .criterio-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem;margin-bottom:1rem}
 .criterio-summary-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem}
@@ -326,14 +328,11 @@ tr:hover td{background:var(--surface2)}
     </div>
     <p class="block-label">Visão cruzada por critério</p>
     <div class="criterio-summary" id="criterioSummary"></div>
-    <p class="block-label">Histórico por quinzena</p>
+    <p class="block-label">Evolução histórica por quinzena</p>
     <div class="card">
-      <h3>Evolução das notas por líder</h3>
-      <div class="hist-wrap">
-        <table class="hist-table" id="histTable">
-          <thead><tr><th>Líder</th></tr></thead>
-          <tbody></tbody>
-        </table>
+      <h3>Score por líder ao longo das quinzenas</h3>
+      <div id="histChartWrap" style="position:relative;height:260px">
+        <div class="empty-state">Sem histórico disponível.</div>
       </div>
     </div>
   </div>
@@ -394,7 +393,6 @@ const STATUS_COLORS={'🟢 Saudável':'#22c55e','🟡  Estável':'#eab308','🟠
 const FRENTE_COLORS={SOCIAL:'#ec4899',PERFORMANCE:'#f97316',DESIGN:'#eab308',CRM:'#22c55e',PLANEJAMENTO:'#4f8ef7',SLA:'#a0a8b8'};
 const SF_COLORS={'ÓTIMO':'#22c55e','BOM':'#4f8ef7','REGULAR':'#eab308','RUIM':'#ef4444'};
 const STATUS_ORDER={'ÓTIMO':3,'BOM':2,'REGULAR':1,'RUIM':0};
-const CRITERIOS=['Escopo Claro','Visão de Negócio','Cronograma Ativo','Acionamento das Pessoas Certas'];
 const NOTA_SCORE={'🟢 Forte':2,'🟡 Em desenvolvimento':1,'🔴 Ponto de atenção':0};
 const TIPO_COLORS={Upsell:'#4f8ef7','Cross-sell':'#a855f7','Renovação':'#22c55e','One shot':'#f97316'};
 
@@ -655,11 +653,42 @@ function renderQATable(){
 // ══════════════════════════════════════════════════════════════
 // TERMÔMETRO (Fonte C)
 // ══════════════════════════════════════════════════════════════
+
+// Nomes exatos conforme cadastrado no Notion (case-sensitive)
+const CRITERIOS=[
+  'Escopo claro',
+  'Visão de negócio',
+  'Cronograma ativo',
+  'Acionamento das pessoas certas'
+];
+
+// Labels para exibição no dashboard (mais legíveis)
+const CRITERIOS_LABEL={
+  'Escopo claro':                  'Escopo Claro',
+  'Visão de negócio':              'Visão de Negócio',
+  'Cronograma ativo':              'Cronograma Ativo',
+  'Acionamento das pessoas certas':'Acionamento das Pessoas Certas',
+};
+
+function notaLabel(nota){
+  if(!nota) return '—';
+  return nota.replace(/[🟢🟡🔴]/g,'').trim();
+}
+function notaCls(nota){
+  if(nota==='🟢 Forte') return 'nota-forte';
+  if(nota==='🟡 Em desenvolvimento'||nota==='🟡 Estável - em desen...') return 'nota-dev';
+  if(nota==='🔴 Ponto de atenção') return 'nota-atencao';
+  return 'nota-vazio';
+}
+
 function renderTermometro(quinzena,prevQ){
   const grid=document.getElementById('termometroGrid');
   const f=quinzena?allTermometro.filter(r=>r.quinzena===quinzena):allTermometro;
   const lideres=[...new Set(f.map(r=>r.lider).filter(Boolean))].sort();
-  if(!f.length){grid.innerHTML='<div class="card"><div class="empty-state">Sem dados para a quinzena selecionada.<br><span style="font-size:.68rem;margin-top:6px;display:block">Preencha o database "Checklist de Execução" no Notion.</span></div></div>';return;}
+  if(!f.length){
+    grid.innerHTML='<div class="card"><div class="empty-state">Sem dados para a quinzena selecionada.<br><span style="font-size:.68rem;margin-top:6px;display:block">Preencha o database "Checklist de Execução" no Notion.</span></div></div>';
+    return;
+  }
   const pf=prevQ?allTermometro.filter(r=>r.quinzena===prevQ):[];
   grid.innerHTML=lideres.map(lider=>{
     const regs=f.filter(r=>r.lider===lider);
@@ -669,16 +698,48 @@ function renderTermometro(quinzena,prevQ){
     const ps=prev.filter(r=>r.score>=0).map(r=>r.score);
     const pm=ps.length?ps.reduce((a,b)=>a+b,0)/ps.length:-1;
     let trend='';
-    if(pm>=0&&media>=0){trend=media>pm?'<span style="color:var(--green);font-size:.85rem;font-weight:700">↑</span>':media<pm?'<span style="color:var(--red);font-size:.85rem;font-weight:700">↓</span>':'<span style="color:var(--muted);font-size:.85rem;font-weight:700">→</span>';}
+    if(pm>=0&&media>=0){
+      trend=media>pm
+        ?'<span style="color:var(--green);font-size:.85rem;font-weight:700">↑</span>'
+        :media<pm
+          ?'<span style="color:var(--red);font-size:.85rem;font-weight:700">↓</span>'
+          :'<span style="color:var(--muted);font-size:.85rem;font-weight:700">→</span>';
+    }
     let bCls='score-forte',bLabel='Forte';
-    if(media<0){bCls='';bLabel='Sem dados';}else if(media<0.75){bCls='score-atencao';bLabel='Atenção';}else if(media<1.5){bCls='score-dev';bLabel='Em desenvolvimento';}
+    if(media<0){bCls='';bLabel='Sem dados';}
+    else if(media<0.75){bCls='score-atencao';bLabel='Atenção';}
+    else if(media<1.5){bCls='score-dev';bLabel='Em desenvolvimento';}
+
+    // Linhas de critério com nota + observação
     const cRows=CRITERIOS.map(c=>{
-      const reg=regs.find(r=>r.criterio===c);
-      if(!reg)return `<div class="criterio-row"><span class="criterio-nome">${c}</span><span class="criterio-nota nota-vazio">—</span></div>`;
-      const cls=reg.nota==='🟢 Forte'?'nota-forte':reg.nota==='🟡 Em desenvolvimento'?'nota-dev':reg.nota==='🔴 Ponto de atenção'?'nota-atencao':'nota-vazio';
-      return `<div class="criterio-row"><span class="criterio-nome">${c}</span><span class="criterio-nota ${cls}">${reg.nota.replace(/[🟢🟡🔴]/g,'').trim()}</span></div>`;
+      // Busca case-insensitive para maior robustez
+      const reg=regs.find(r=>r.criterio?.toLowerCase()===c.toLowerCase());
+      const label=CRITERIOS_LABEL[c]||c;
+      if(!reg) return `<div class="criterio-row">
+        <span class="criterio-nome">${label}</span>
+        <span class="criterio-nota nota-vazio">—</span>
+        <span class="criterio-obs"></span>
+      </div>`;
+      const cls=notaCls(reg.nota);
+      return `<div class="criterio-row">
+        <span class="criterio-nome">${label}</span>
+        <span class="criterio-nota ${cls}">${notaLabel(reg.nota)}</span>
+        ${reg.obs?`<span class="criterio-obs">${reg.obs}</span>`:'<span class="criterio-obs"></span>'}
+      </div>`;
     }).join('');
-    return `<div class="lider-card"><div class="lider-header"><span class="lider-name">${lider} ${trend}</span>${media>=0?`<span class="score-badge ${bCls}">${bLabel}</span>`:''}</div>${cRows}</div>`;
+
+    return `<div class="lider-card">
+      <div class="lider-header">
+        <span class="lider-name">${lider} ${trend}</span>
+        ${media>=0?`<span class="score-badge ${bCls}">${bLabel}</span>`:''}
+      </div>
+      <div class="criterio-header-row">
+        <span style="color:var(--muted);font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em">Critério</span>
+        <span style="color:var(--muted);font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em">Nota</span>
+        <span style="color:var(--muted);font-size:.6rem;font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.07em">Observação</span>
+      </div>
+      ${cRows}
+    </div>`;
   }).join('');
 }
 
@@ -687,11 +748,12 @@ function renderCriterioSummary(quinzena){
   const f=quinzena?allTermometro.filter(r=>r.quinzena===quinzena):allTermometro;
   if(!f.length){el.innerHTML='';return;}
   el.innerHTML=CRITERIOS.map(c=>{
-    const regs=f.filter(r=>r.criterio===c);
+    const regs=f.filter(r=>r.criterio?.toLowerCase()===c.toLowerCase());
     const forte=regs.filter(r=>r.nota==='🟢 Forte').length;
-    const dev=regs.filter(r=>r.nota==='🟡 Em desenvolvimento').length;
+    const dev=regs.filter(r=>r.nota&&r.nota.includes('desenvolvimento')).length;
     const at=regs.filter(r=>r.nota==='🔴 Ponto de atenção').length;
-    return `<div class="criterio-summary-card"><h4>${c}</h4>
+    const label=CRITERIOS_LABEL[c]||c;
+    return `<div class="criterio-summary-card"><h4>${label}</h4>
       <div class="criterio-mini-row"><span style="color:var(--green)">🟢 Forte</span><strong style="color:var(--green)">${forte}</strong></div>
       <div class="criterio-mini-row"><span style="color:var(--yellow)">🟡 Em desenvolvimento</span><strong style="color:var(--yellow)">${dev}</strong></div>
       <div class="criterio-mini-row"><span style="color:var(--red)">🔴 Ponto de atenção</span><strong style="color:var(--red)">${at}</strong></div>
@@ -700,22 +762,80 @@ function renderCriterioSummary(quinzena){
 }
 
 function renderHistorico(){
-  const table=document.getElementById('histTable');
   const quinzenas=sortQ([...new Set(allTermometro.map(r=>r.quinzena).filter(Boolean))]);
   const lideres=[...new Set(allTermometro.map(r=>r.lider).filter(Boolean))].sort();
-  if(!quinzenas.length||!lideres.length){table.querySelector('tbody').innerHTML='<tr><td class="empty-state">Sem histórico disponível.</td></tr>';return;}
-  table.querySelector('thead tr').innerHTML='<th>Líder</th>'+quinzenas.map(q=>`<th>${q}</th>`).join('');
-  table.querySelector('tbody').innerHTML=lideres.map(lider=>{
-    const cells=quinzenas.map(q=>{
+  const el=document.getElementById('histChartWrap');
+  if(!el) return;
+
+  if(!quinzenas.length||!lideres.length){
+    el.innerHTML='<div class="empty-state">Sem histórico disponível.</div>';
+    return;
+  }
+
+  el.innerHTML='<canvas id="chartHistorico"></canvas>';
+  el.style.position='relative';
+  el.style.height='260px';
+
+  // Score médio por líder por quinzena (0-2)
+  const LIDER_COLORS=['#4f8ef7','#a855f7','#22c55e','#f97316','#ec4899','#eab308'];
+  const datasets=lideres.map((lider,i)=>({
+    label: lider,
+    data: quinzenas.map(q=>{
       const regs=allTermometro.filter(r=>r.lider===lider&&r.quinzena===q&&r.score>=0);
-      if(!regs.length)return'<td style="color:var(--muted)">—</td>';
-      const media=regs.reduce((a,r)=>a+r.score,0)/regs.length;
-      const cls=media>=1.5?'color:var(--green)':media>=0.75?'color:var(--yellow)':'color:var(--red)';
-      const label=media>=1.5?'Forte':media>=0.75?'Em dev.':'Atenção';
-      return `<td style="${cls};font-weight:600">${label}</td>`;
-    }).join('');
-    return `<tr><td style="font-weight:600">${lider}</td>${cells}</tr>`;
-  }).join('');
+      if(!regs.length) return null;
+      return parseFloat((regs.reduce((a,r)=>a+r.score,0)/regs.length).toFixed(2));
+    }),
+    borderColor: LIDER_COLORS[i%LIDER_COLORS.length],
+    backgroundColor: LIDER_COLORS[i%LIDER_COLORS.length]+'33',
+    borderWidth: 2,
+    pointRadius: 5,
+    pointHoverRadius: 7,
+    tension: 0.3,
+    spanGaps: true,
+    fill: false,
+  }));
+
+  if(charts.historico) charts.historico.destroy();
+  charts.historico=new Chart(document.getElementById('chartHistorico'),{
+    type:'line',
+    data:{ labels: quinzenas, datasets },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{
+        x:{
+          ticks:{color:'#fff',font:{family:'DM Mono',size:9}},
+          grid:{color:'#2a2d35'},
+        },
+        y:{
+          min:0, max:2,
+          ticks:{
+            color:'#fff',
+            font:{family:'DM Mono',size:9},
+            stepSize:1,
+            callback: v => v===0?'Atenção':v===1?'Em dev.':v===2?'Forte':'',
+          },
+          grid:{color:'#2a2d35'},
+        }
+      },
+      plugins:{
+        legend:{
+          position:'bottom',
+          labels:{color:'#fff',font:{family:'DM Mono',size:10},boxWidth:12,padding:16}
+        },
+        tooltip:{
+          callbacks:{
+            label: ctx=>{
+              const s=ctx.raw;
+              if(s===null) return `  ${ctx.dataset.label}: sem dados`;
+              const label=s>=1.5?'Forte':s>=0.75?'Em desenvolvimento':'Atenção';
+              return `  ${ctx.dataset.label}: ${label} (${s})`;
+            }
+          }
+        }
+      }
+    }
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
