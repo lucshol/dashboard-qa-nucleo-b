@@ -87,14 +87,37 @@ select,.btn-refresh{background:var(--surface2);border:1px solid var(--border);co
 .chart-wrap{position:relative;height:220px}
 
 /* CLIENTE CARDS */
-.clientes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:.75rem;margin-bottom:1rem}
-.cliente-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem}
-.cliente-card-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:.5rem;gap:.5rem}
+.clientes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:.75rem;margin-bottom:1rem}
+.cliente-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem;display:flex;flex-direction:column;gap:0}
+.cliente-card-header{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;padding-bottom:.6rem}
 .cliente-nome{font-size:.85rem;font-weight:700;color:#fff}
 .cliente-squad{margin-top:3px}
-.cliente-motivo{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--muted);line-height:1.4;margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--border)}
-.cliente-footer{display:flex;gap:.75rem;flex-wrap:wrap;margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--border)}
-.cliente-footer span{font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted)}
+/* Bloco de motivo/status */
+.cliente-motivo{
+  font-family:'DM Mono',monospace;font-size:.65rem;color:var(--muted);
+  line-height:1.5;padding:.6rem 0;
+  border-top:1px solid var(--border);
+}
+/* Bloco de plano de ação */
+.cliente-plano{
+  font-family:'DM Mono',monospace;font-size:.65rem;color:#fff;
+  line-height:1.5;padding:.6rem 0;
+  border-top:1px solid var(--border);
+  display:flex;flex-direction:column;gap:4px;
+}
+.cliente-plano-label{
+  font-size:.58rem;text-transform:uppercase;letter-spacing:.09em;
+  color:var(--sq4);font-weight:600;margin-bottom:2px;
+}
+/* Footer com metadados */
+.cliente-footer{
+  display:flex;gap:.75rem;flex-wrap:wrap;
+  padding:.5rem 0 0;border-top:1px solid var(--border);
+}
+.cliente-footer span{
+  font-family:'DM Mono',monospace;font-size:.6rem;color:var(--muted);
+  display:flex;align-items:center;gap:3px;
+}
 
 /* FRENTES */
 .frentes-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1rem;margin-bottom:1rem}
@@ -125,13 +148,85 @@ select,.btn-refresh{background:var(--surface2);border:1px solid var(--border);co
 .score-forte{background:rgba(34,197,94,.15);color:var(--green)}
 .score-dev{background:rgba(234,179,8,.15);color:var(--yellow)}
 .score-atencao{background:rgba(239,68,68,.15);color:var(--red)}
-.criterio-row{display:grid;grid-template-columns:1fr auto minmax(80px,1.5fr);align-items:start;gap:8px;padding:7px 0;border-bottom:.5px solid var(--border);font-family:'DM Mono',monospace;font-size:.65rem}
-.criterio-row:last-child{border-bottom:none}
-.criterio-header-row{display:grid;grid-template-columns:1fr auto minmax(80px,1.5fr);gap:8px;padding:4px 0;border-bottom:.5px solid var(--border);margin-bottom:2px}
-.criterio-nome{color:var(--muted);line-height:1.3}
-.criterio-nota{font-weight:600;font-size:.68rem;white-space:nowrap;text-align:right}
-.criterio-obs{color:var(--muted);font-size:.63rem;line-height:1.4}
-.nota-forte{color:var(--green)}.nota-dev{color:var(--yellow)}.nota-atencao{color:var(--red)}.nota-vazio{color:var(--muted)}
+/* TERMÔMETRO — layout redesenhado */
+.lider-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.25rem}
+.lider-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;padding-bottom:.75rem;border-bottom:1px solid var(--border)}
+.lider-name{font-size:.95rem;font-weight:700;color:#fff;display:flex;align-items:center;gap:8px}
+.score-badge{font-family:'DM Mono',monospace;font-size:.68rem;font-weight:700;padding:3px 10px;border-radius:20px}
+.score-forte{background:rgba(34,197,94,.15);color:var(--green)}
+.score-dev{background:rgba(234,179,8,.15);color:var(--yellow)}
+.score-atencao{background:rgba(239,68,68,.15);color:var(--red)}
+
+/* Header de colunas */
+.criterio-header-row{
+  display:grid;
+  grid-template-columns:160px 140px 1fr;
+  gap:12px;
+  padding:4px 8px 6px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:4px;
+}
+.criterio-header-row span{
+  font-family:'DM Mono',monospace;
+  font-size:.58rem;
+  color:var(--muted);
+  text-transform:uppercase;
+  letter-spacing:.09em;
+}
+
+/* Linha de critério */
+.criterio-row{
+  display:grid;
+  grid-template-columns:160px 140px 1fr;
+  gap:12px;
+  align-items:start;
+  padding:8px 8px;
+  border-radius:6px;
+  transition:background .12s;
+}
+.criterio-row:hover{background:var(--surface2)}
+.criterio-row+.criterio-row{border-top:.5px solid var(--border)}
+
+.criterio-nome{
+  font-family:'DM Mono',monospace;
+  font-size:.7rem;
+  color:#fff;
+  font-weight:500;
+  line-height:1.4;
+  padding-top:2px;
+}
+
+/* Badge de nota */
+.criterio-nota{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  font-family:'DM Mono',monospace;
+  font-size:.68rem;
+  font-weight:600;
+  padding:3px 10px;
+  border-radius:20px;
+  white-space:nowrap;
+  width:fit-content;
+}
+.nota-forte{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.25)}
+.nota-dev{background:rgba(234,179,8,.12);color:var(--yellow);border:1px solid rgba(234,179,8,.25)}
+.nota-atencao{background:rgba(239,68,68,.12);color:var(--red);border:1px solid rgba(239,68,68,.25)}
+.nota-vazio{background:rgba(160,168,184,.08);color:var(--muted);border:1px solid var(--border)}
+
+/* Observação */
+.criterio-obs{
+  font-family:'DM Mono',monospace;
+  font-size:.65rem;
+  color:var(--muted);
+  line-height:1.55;
+  padding-top:2px;
+}
+
+.criterio-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem;margin-bottom:1rem}
+.criterio-summary-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem}
+.criterio-summary-card h4{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.75rem}
+.criterio-mini-row{display:flex;align-items:center;justify-content:space-between;font-family:'DM Mono',monospace;font-size:.68rem;margin-bottom:4px}
 .criterio-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.75rem;margin-bottom:1rem}
 .criterio-summary-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem}
 .criterio-summary-card h4{font-family:'DM Mono',monospace;font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:.75rem}
@@ -528,20 +623,44 @@ function renderClientesCards(contas){
   const ORDER={'🔴 Em risco':0,'🟠 Atenção':1,'🟡  Estável':2,'🟢 Saudável':3,'⏸️ Pausado':4};
   const sorted=[...contas].sort((a,b)=>(ORDER[a.statusGeral]??9)-(ORDER[b.statusGeral]??9));
   grid.innerHTML=sorted.map(c=>{
-    const sc=c.statusGeral.includes('Saudável')?'green':c.statusGeral.includes('Estável')?'yellow':c.statusGeral.includes('Atenção')?'orange':c.statusGeral.includes('risco')?'red':'gray';
-    const escopo=c.escopo?`<span>📋 ${c.escopo}</span>`:'';
-    const renov=c.dataRenovacao?`<span>🗓️ Renova: ${c.dataRenovacao}</span>`:'';
-    const atualiz=c.atualizacaoStatus?`<span>🔄 Atualizado: ${c.atualizacaoStatus}</span>`:'';
+    const sc=c.statusGeral.includes('Saudável')?'green'
+      :c.statusGeral.includes('Estável')?'yellow'
+      :c.statusGeral.includes('Atenção')?'orange'
+      :c.statusGeral.includes('risco')?'red':'gray';
+
+    const escopo   = c.escopo        ? `<span>📋 ${c.escopo}</span>` : '';
+    const renov    = c.dataRenovacao  ? `<span>🗓️ Renova: ${c.dataRenovacao}</span>` : '';
+    const atualiz  = c.atualizacaoStatus ? `<span>🔄 ${c.atualizacaoStatus}</span>` : '';
+
+    const motivoBlock = c.motivoStatus
+      ? `<div class="cliente-motivo">${c.motivoStatus}</div>`
+      : '';
+
+    const planoBlock = c.responsavel
+      ? `<div class="cliente-plano">
+           <span class="cliente-plano-label">⚡ Responsável / Plano de ação</span>
+           ${c.responsavel}
+         </div>`
+      : '';
+
+    const footerItems = [escopo, renov, atualiz].filter(Boolean).join('');
+    const footerBlock = footerItems
+      ? `<div class="cliente-footer">${footerItems}</div>`
+      : '';
+
     return `<div class="cliente-card">
       <div class="cliente-card-header">
         <div>
           <div class="cliente-nome">${c.nome}</div>
-          <div class="cliente-squad"><span class="squad-label ${c.squad==='Squad 4'?'sq4-label':'sq5-label'}">${c.squad==='Squad 4'?'SQ4':'SQ5'}</span></div>
+          <div class="cliente-squad">
+            <span class="squad-label ${c.squad==='Squad 4'?'sq4-label':'sq5-label'}">${c.squad==='Squad 4'?'SQ4':'SQ5'}</span>
+          </div>
         </div>
         <span class="badge badge-${sc}">${c.statusGeral.replace(/[🟢🟡🟠🔴⏸️\s]/g,'').trim()}</span>
       </div>
-      ${c.motivoStatus?`<div class="cliente-motivo">${c.motivoStatus}</div>`:''}
-      ${(escopo||renov||atualiz)?`<div class="cliente-footer">${escopo}${renov}${atualiz}</div>`:''}
+      ${motivoBlock}
+      ${planoBlock}
+      ${footerBlock}
     </div>`;
   }).join('');
 }
@@ -712,7 +831,6 @@ function renderTermometro(quinzena,prevQ){
 
     // Linhas de critério com nota + observação
     const cRows=CRITERIOS.map(c=>{
-      // Busca case-insensitive para maior robustez
       const reg=regs.find(r=>r.criterio?.toLowerCase()===c.toLowerCase());
       const label=CRITERIOS_LABEL[c]||c;
       if(!reg) return `<div class="criterio-row">
@@ -721,10 +839,12 @@ function renderTermometro(quinzena,prevQ){
         <span class="criterio-obs"></span>
       </div>`;
       const cls=notaCls(reg.nota);
+      const dot=reg.nota==='🟢 Forte'?'🟢':reg.nota?.includes('desenvolvimento')||reg.nota?.includes('Estável')?'🟡':reg.nota==='🔴 Ponto de atenção'?'🔴':'';
+      const shortNota=reg.nota==='🟢 Forte'?'Forte':reg.nota?.includes('desenvolvimento')||reg.nota?.includes('Estável')?'Em desenvolvimento':reg.nota==='🔴 Ponto de atenção'?'Ponto de atenção':notaLabel(reg.nota);
       return `<div class="criterio-row">
         <span class="criterio-nome">${label}</span>
-        <span class="criterio-nota ${cls}">${notaLabel(reg.nota)}</span>
-        ${reg.obs?`<span class="criterio-obs">${reg.obs}</span>`:'<span class="criterio-obs"></span>'}
+        <span class="criterio-nota ${cls}">${dot} ${shortNota}</span>
+        ${reg.obs?`<span class="criterio-obs">${reg.obs}</span>`:'<span class="criterio-obs" style="color:transparent">—</span>'}
       </div>`;
     }).join('');
 
