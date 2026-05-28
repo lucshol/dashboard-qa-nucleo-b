@@ -139,6 +139,7 @@ function transformContas(results) {
     escopo:                  getProp(p.properties, 'Escopo'),
     dataRenovacao:           getProp(p.properties, 'Data de renovação'),
     atualizacaoStatus:       getProp(p.properties, 'Atualização do status'),
+    responsavel:             getProp(p.properties, 'Responsável / Plano de ação'),
     // campos de oportunidades
     tipo:                    getProp(p.properties, 'Tipo'),
     possibilidades:          getProp(p.properties, 'Possibilidades'),
